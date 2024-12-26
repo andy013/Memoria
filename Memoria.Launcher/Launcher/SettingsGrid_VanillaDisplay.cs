@@ -15,8 +15,8 @@ namespace Memoria.Launcher
 {
     public sealed class SettingsGrid_VanillaDisplay : UiGrid, INotifyPropertyChanged
     {
-        private readonly ObservableCollection<string> _resChoices = new ObservableCollection<string>();
-        private readonly ComboBox _resComboBox;
+        private readonly ObservableCollection<string> _resolutionChoices = new ObservableCollection<string>();
+        private readonly ComboBox _resolutionComboBox;
 
         public SettingsGrid_VanillaDisplay()
         {
@@ -35,12 +35,12 @@ namespace Memoria.Launcher
             };
             ComboBox modeComboBox = CreateCombobox("WindowMode", comboboxchoices, 50, "Settings.WindowMode", "Settings.WindowMode_Tooltip");
 
-            _resComboBox = CreateCombobox("ScreenResolution", _resChoices, 50, "Settings.Resolution", "Settings.Resolution_Tooltip", "", true);
-            _resComboBox.ItemsSource = _resChoices;
+            _resolutionComboBox = CreateCombobox("ScreenResolution", _resolutionChoices, 50, "Settings.Resolution", "Settings.Resolution_Tooltip", "", true);
+            _resolutionComboBox.ItemsSource = _resolutionChoices;
 
             modeComboBox.SelectionChanged += (s, e) =>
             {
-                _resComboBox.IsEnabled = modeComboBox.SelectedIndex != 2;
+                _resolutionComboBox.IsEnabled = modeComboBox.SelectedIndex != 2;
             };
 
             try
@@ -112,16 +112,18 @@ namespace Memoria.Launcher
                         else
                             iniFile.SetSetting("Settings", propertyName, String.Empty);
 
-                        _resChoices.Clear();
-                        _resChoices.Add((string)Lang.Res["Launcher.Auto"]);
+                        _resolutionChoices.Clear();
+                        _resolutionChoices.Add((string)Lang.Res["Launcher.Auto"]);
                         var newItems = EnumerateDisplaySettings().OrderByDescending(x => Convert.ToInt32(x.Split('x')[0])).ToArray();
 
                         foreach (var item in newItems)
                         {
-                            _resChoices.Add(AddRatio(item));
+                            _resolutionChoices.Add(AddRatio(item));
                         }
 
-                        _resComboBox.SelectedIndex = _resChoices.IndexOf(ScreenResolution);
+                        var resolutionIndex = _resolutionChoices.IndexOf(ScreenResolution);
+
+                        _resolutionComboBox.SelectedIndex = resolutionIndex >= 0 ? resolutionIndex : 0;
                         break;
                     case nameof(ScreenResolution):
                         // Use _resolution here so we don't save aspect ratio into the ini.

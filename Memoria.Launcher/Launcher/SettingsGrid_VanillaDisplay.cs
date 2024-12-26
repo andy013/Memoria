@@ -157,7 +157,7 @@ namespace Memoria.Launcher
                 if (!String.IsNullOrEmpty(value))
                 {
                     var index = Array.FindIndex(Screen.AllScreens, s => s.DeviceName == value);
-                    var name = FormatMonitorDescription(index);
+                    var name = FormatMonitorString(index);
 
                     _activeMonitor = name;
                 }
@@ -271,7 +271,7 @@ namespace Memoria.Launcher
             String[] result = new String[allScreens.Length];
             for (Int32 index = 0; index < allScreens.Length; index++)
             {
-                result[index] = FormatMonitorDescription(index);
+                result[index] = FormatMonitorString(index);
 
                 if (allScreens[index].Primary)
                     _activeMonitor = result[index];
@@ -279,7 +279,7 @@ namespace Memoria.Launcher
             return result;
         }
 
-        public static String FormatMonitorDescription(Int32 index)
+        public static String FormatMonitorString(Int32 index)
         {
             Screen[] allScreens = Screen.AllScreens;
             Dictionary<Int32, String> friendlyNames = ScreenInterrogatory.GetAllMonitorFriendlyNamesSafe();
@@ -289,12 +289,11 @@ namespace Memoria.Launcher
             sb.Append(index);
             sb.Append(" - ");
 
-            if (index < allScreens.Length && index >= 0)
+            if (index >= 0 && index < allScreens.Length)
             {
                 Screen screen = allScreens[index];
 
-                String name;
-                if (!friendlyNames.TryGetValue(index, out name))
+                if (!friendlyNames.TryGetValue(index, out String name) || string.IsNullOrEmpty(name))
                     name = screen.DeviceName;
 
                 sb.Append(name);

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
@@ -14,10 +15,12 @@ namespace Memoria.Launcher
 {
     public sealed class SettingsGrid_VanillaDisplay : UiGrid, INotifyPropertyChanged
     {
+        private readonly ObservableCollection<string> _resChoices = new ObservableCollection<string>();
+        private readonly ComboBox _resComboBox;
+
         public SettingsGrid_VanillaDisplay()
         {
             DataContext = this;
-
 
             CreateHeading("Settings.Display");
 
@@ -32,16 +35,12 @@ namespace Memoria.Launcher
             };
             ComboBox modeComboBox = CreateCombobox("WindowMode", comboboxchoices, 50, "Settings.WindowMode", "Settings.WindowMode_Tooltip");
 
-            List<String> reschoices =
-            [
-                "Launcher.Auto",
-                .. EnumerateDisplaySettings(true).OrderByDescending(x => Convert.ToInt32(x.Split('x')[0]))
-            ];
-            ComboBox resComboBox = CreateCombobox("ScreenResolution", reschoices, 50, "Settings.Resolution", "Settings.Resolution_Tooltip", "", true);
+            _resComboBox = CreateCombobox("ScreenResolution", _resChoices, 50, "Settings.Resolution", "Settings.Resolution_Tooltip", "", true);
+            _resComboBox.ItemsSource = _resChoices;
 
             modeComboBox.SelectionChanged += (s, e) =>
             {
-                resComboBox.IsEnabled = modeComboBox.SelectedIndex != 2;
+                _resComboBox.IsEnabled = modeComboBox.SelectedIndex != 2;
             };
 
             try
@@ -51,34 +50,6 @@ namespace Memoria.Launcher
             catch (Exception ex)
             {
                 UiHelper.ShowError(Application.Current.MainWindow, ex);
-            }
-        }
-
-        public String ScreenResolution
-        {
-            get { return _resolution == "0x0" ? (String)Lang.Res["Launcher.Auto"] : _resolution; }
-            set
-            {
-                if (value != null && _resolution != value)
-                {
-                    if (value == (String)Lang.Res["Launcher.Auto"])
-                        _resolution = "0x0";
-                    else
-                        _resolution = addRatio(value);
-                    OnPropertyChanged();
-                }
-            }
-        }
-        public Int16 WindowMode
-        {
-            get { return _windowMode; }
-            set
-            {
-                if (_windowMode != value)
-                {
-                    _windowMode = value;
-                    OnPropertyChanged();
-                }
             }
         }
 
@@ -95,6 +66,35 @@ namespace Memoria.Launcher
             }
         }
 
+        public String ScreenResolution
+        {
+            get { return _resolution == "0x0" ? (String)Lang.Res["Launcher.Auto"] : AddRatio(_resolution); }
+            set
+            {
+                if (value != null && _resolution != value)
+                {
+                    if (value == (String)Lang.Res["Launcher.Auto"])
+                        _resolution = "0x0";
+                    else
+                        _resolution = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public Int16 WindowMode
+        {
+            get { return _windowMode; }
+            set
+            {
+                if (_windowMode != value)
+                {
+                    _windowMode = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         public event PropertyChangedEventHandler PropertyChanged;
 
         private async void OnPropertyChanged([CallerMemberName] String propertyName = null)
@@ -106,15 +106,26 @@ namespace Memoria.Launcher
                 IniFile iniFile = IniFile.SettingsIni;
                 switch (propertyName)
                 {
-                    case nameof(ScreenResolution):
-                        iniFile.SetSetting("Settings", propertyName, _resolution?.Split('|')[0].Trim(' ') ?? "0x0");
-                        break;
                     case nameof(ActiveMonitor):
-                        Int32.TryParse(ActiveMonitor.Substring(0, 1), out int index);
-                        if (index < Screen.AllScreens.Length) 
+                        if (Int32.TryParse(ActiveMonitor.Substring(0, 1), out int index) && index < Screen.AllScreens.Length)
                             iniFile.SetSetting("Settings", propertyName, Screen.AllScreens[index].DeviceName);
                         else
                             iniFile.SetSetting("Settings", propertyName, String.Empty);
+
+                        _resChoices.Clear();
+                        _resChoices.Add((string)Lang.Res["Launcher.Auto"]);
+                        var newItems = EnumerateDisplaySettings(true).OrderByDescending(x => Convert.ToInt32(x.Split('x')[0])).ToArray();
+
+                        foreach (var item in newItems)
+                        {
+                            _resChoices.Add(item);
+                        }
+
+                        _resComboBox.SelectedIndex = _resChoices.IndexOf(ScreenResolution);
+                        break;
+                    case nameof(ScreenResolution):
+                        // Use _resolution here so we don't save aspect ratio into the ini.
+                        iniFile.SetSetting("Settings", propertyName, _resolution ?? "0x0");
                         break;
                     case nameof(WindowMode):
                         iniFile.SetSetting("Settings", propertyName, WindowMode.ToString());
@@ -128,8 +139,8 @@ namespace Memoria.Launcher
             }
         }
 
-        private String _resolution = "";
         private String _activeMonitor = "";
+        private String _resolution = "";
         private Int16 _windowMode;
 
         public void LoadSettings()
@@ -139,24 +150,27 @@ namespace Memoria.Launcher
                 IniFile.PreventWrite = true;
                 IniFile iniFile = IniFile.SettingsIni;
 
-                String value = iniFile.GetSetting("Settings", nameof(ScreenResolution)).Split('|')[0].Trim(' ');
+                // Make sure we load ActiveMonitor before ScreenResolution, otherwise we might check the wrong display.
+                String value = iniFile.GetSetting("Settings", nameof(ActiveMonitor));
+                if (!String.IsNullOrEmpty(value))
+                {
+                    var index = Array.FindIndex(Screen.AllScreens, s => s.DeviceName == value);
+                    var name = FormatMonitorDescription(index);
+
+                    _activeMonitor = name;
+                }
+
+                value = iniFile.GetSetting("Settings", nameof(ScreenResolution));
+
                 //if res in settings.ini exists AND corresponds to something in the res list
                 if ((!String.IsNullOrEmpty(value)) && EnumerateDisplaySettings(false).ToArray().Any(value.Contains))
-                    _resolution = addRatio(value);
+                    _resolution = value;
                 //else we choose the largest available one
                 else if (value == "0x0")
                     _resolution = value;
                 else
-                    _resolution = EnumerateDisplaySettings(false).OrderByDescending(x => Convert.ToInt32(x.Split('x')[0])).ToArray()[0];
+                    _resolution = EnumerateDisplaySettings(true).OrderByDescending(x => Convert.ToInt32(x.Split('x')[0])).ToArray()[0];
 
-                value = iniFile.GetSetting("Settings", nameof(ActiveMonitor));
-                if (!String.IsNullOrEmpty(value))
-                {
-                    var index = Array.FindIndex(Screen.AllScreens, s => s.DeviceName == value);
-                    var name = BuildMonitorString(index);
-
-                    _activeMonitor = name;
-                }
 
                 value = iniFile.GetSetting("Settings", nameof(WindowMode));
                 if (!String.IsNullOrEmpty(value))
@@ -177,8 +191,8 @@ namespace Memoria.Launcher
                 if (!Int16.TryParse(value, out _windowMode))
                     _windowMode = 0;
 
-                OnPropertyChanged(nameof(ScreenResolution));
                 OnPropertyChanged(nameof(ActiveMonitor));
+                OnPropertyChanged(nameof(ScreenResolution));
                 OnPropertyChanged(nameof(WindowMode));
 
             }
@@ -200,14 +214,22 @@ namespace Memoria.Launcher
             HashSet<String> set = new HashSet<String>();
             DevMode devMode = new DevMode();
             Int32 modeNum = 0;
-            while (EnumDisplaySettings(null, modeNum++, ref devMode))
+
+            var allScreens = Screen.AllScreens;
+            Int32.TryParse(ActiveMonitor.Substring(0, 1), out int index);
+            string? name = null;
+
+            if (index >= 0 && index < allScreens.Length)
+                name = allScreens[index].DeviceName;
+
+            while (EnumDisplaySettings(name, modeNum++, ref devMode))
             {
                 if (devMode.dmPelsWidth >= 640 && devMode.dmPelsHeight >= 480)
                 {
                     String resolution = $"{devMode.dmPelsWidth.ToString(CultureInfo.InvariantCulture)}x{devMode.dmPelsHeight.ToString(CultureInfo.InvariantCulture)}";
 
                     if (displayRatio)
-                        resolution = addRatio(resolution);
+                        resolution = AddRatio(resolution);
 
                     if (set.Add(resolution))
                         yield return resolution;
@@ -215,7 +237,7 @@ namespace Memoria.Launcher
             }
         }
 
-        private String addRatio(String resolution)
+        private static String AddRatio(String resolution)
         {
             if (!resolution.Contains("|") && resolution.Contains("x"))
             {
@@ -245,7 +267,7 @@ namespace Memoria.Launcher
             String[] result = new String[allScreens.Length];
             for (Int32 index = 0; index < allScreens.Length; index++)
             {
-                result[index] = BuildMonitorString(index);
+                result[index] = FormatMonitorDescription(index);
 
                 if (allScreens[index].Primary)
                     _activeMonitor = result[index];
@@ -253,7 +275,7 @@ namespace Memoria.Launcher
             return result;
         }
 
-        public String BuildMonitorString(Int32 index)
+        public static String FormatMonitorDescription(Int32 index)
         {
             Screen[] allScreens = Screen.AllScreens;
             Dictionary<Int32, String> friendlyNames = ScreenInterrogatory.GetAllMonitorFriendlyNamesSafe();
@@ -270,18 +292,19 @@ namespace Memoria.Launcher
                 String name;
                 if (!friendlyNames.TryGetValue(index, out name))
                     name = screen.DeviceName;
-                sb.Append(name);
 
+                sb.Append(name);
 
                 if (screen.Primary)
                     sb.Append((String)Lang.Res["Settings.PrimaryMonitor"]);
-            } else
+            }
+            else
             {
                 sb.Append("Unknown Monitor");
             }
 
-            return(sb.ToString());
-        } 
+            return (sb.ToString());
+        }
 
         private struct DevMode
         {

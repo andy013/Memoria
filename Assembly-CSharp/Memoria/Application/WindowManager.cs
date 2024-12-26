@@ -53,7 +53,7 @@ namespace Memoria
             {
                 Int32 windowMode = 0;
 
-                string monitor = IniFile.SettingsIni.GetSetting("Settings", "ActiveMonitor");
+                String monitor = IniFile.SettingsIni.GetSetting("Settings", "ActiveMonitor");
                 Int32.TryParse(IniFile.SettingsIni.GetSetting("Settings", "WindowMode", "0"), out windowMode);
 
                 IntPtr hWindow = GetActiveWindow();
@@ -67,7 +67,7 @@ namespace Memoria
                 // Check if the monitor string from our ini matches any current displayIDs
                 foreach (var d in Displays)
                 {
-                    string displayID = new string(d.szDevice).Trim('\0');
+                    String displayID = new String(d.szDevice).Trim('\0');
                     if (displayID == monitor)
                     {
                         // Found a match, use this display

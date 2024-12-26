@@ -76,7 +76,7 @@ namespace Memoria.Launcher
                     if (value == (String)Lang.Res["Launcher.Auto"])
                         _resolution = "0x0";
                     else
-                        _resolution = value;
+                        _resolution = RemoveRatio(value);
                     OnPropertyChanged();
                 }
             }
@@ -114,11 +114,11 @@ namespace Memoria.Launcher
 
                         _resChoices.Clear();
                         _resChoices.Add((string)Lang.Res["Launcher.Auto"]);
-                        var newItems = EnumerateDisplaySettings(true).OrderByDescending(x => Convert.ToInt32(x.Split('x')[0])).ToArray();
+                        var newItems = EnumerateDisplaySettings().OrderByDescending(x => Convert.ToInt32(x.Split('x')[0])).ToArray();
 
                         foreach (var item in newItems)
                         {
-                            _resChoices.Add(item);
+                            _resChoices.Add(AddRatio(item));
                         }
 
                         _resComboBox.SelectedIndex = _resChoices.IndexOf(ScreenResolution);
@@ -163,13 +163,13 @@ namespace Memoria.Launcher
                 value = iniFile.GetSetting("Settings", nameof(ScreenResolution));
 
                 //if res in settings.ini exists AND corresponds to something in the res list
-                if ((!String.IsNullOrEmpty(value)) && EnumerateDisplaySettings(false).ToArray().Any(value.Contains))
+                if ((!String.IsNullOrEmpty(value)) && EnumerateDisplaySettings().ToArray().Any(value.Contains))
                     _resolution = value;
                 //else we choose the largest available one
                 else if (value == "0x0")
                     _resolution = value;
                 else
-                    _resolution = EnumerateDisplaySettings(true).OrderByDescending(x => Convert.ToInt32(x.Split('x')[0])).ToArray()[0];
+                    _resolution = EnumerateDisplaySettings().OrderByDescending(x => Convert.ToInt32(x.Split('x')[0])).ToArray()[0];
 
 
                 value = iniFile.GetSetting("Settings", nameof(WindowMode));
@@ -209,7 +209,7 @@ namespace Memoria.Launcher
         [DllImport("user32.dll")]
         private static extern Boolean EnumDisplaySettings(String deviceName, Int32 modeNum, ref DevMode devMode);
 
-        public IEnumerable<String> EnumerateDisplaySettings(Boolean displayRatio)
+        public IEnumerable<String> EnumerateDisplaySettings()
         {
             HashSet<String> set = new HashSet<String>();
             DevMode devMode = new DevMode();
@@ -227,9 +227,6 @@ namespace Memoria.Launcher
                 if (devMode.dmPelsWidth >= 640 && devMode.dmPelsHeight >= 480)
                 {
                     String resolution = $"{devMode.dmPelsWidth.ToString(CultureInfo.InvariantCulture)}x{devMode.dmPelsHeight.ToString(CultureInfo.InvariantCulture)}";
-
-                    if (displayRatio)
-                        resolution = AddRatio(resolution);
 
                     if (set.Add(resolution))
                         yield return resolution;
@@ -259,6 +256,11 @@ namespace Memoria.Launcher
                 resolution += ratio;
             }
             return resolution;
+        }
+
+        private static String RemoveRatio(String resolution)
+        {
+            return resolution.Split('|')[0].Trim(' ');
         }
 
         public String[] GetAvailableMonitors()

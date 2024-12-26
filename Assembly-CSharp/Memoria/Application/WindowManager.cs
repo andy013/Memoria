@@ -1,6 +1,7 @@
 ﻿using Memoria.Prime;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.InteropServices;
 using UnityEngine;
 
@@ -50,18 +51,30 @@ namespace Memoria
         {
             try
             {
-                Int32 monitor = 0;
                 Int32 windowMode = 0;
 
-                Int32.TryParse(IniFile.SettingsIni.GetSetting("Settings", "ActiveMonitor", "0 -").Split(' ')[0], out monitor);
+                string monitor = IniFile.SettingsIni.GetSetting("Settings", "ActiveMonitor");
                 Int32.TryParse(IniFile.SettingsIni.GetSetting("Settings", "WindowMode", "0"), out windowMode);
 
                 IntPtr hWindow = GetActiveWindow();
                 RECT windowRect = new RECT();
                 GetWindowRect(hWindow, ref windowRect);
 
-                if (monitor > Displays.Count - 1) return;
-                var display = Displays[monitor]; // Hopefully it's the same order
+                if (!Displays.Any()) return;
+
+                var display = Displays.FirstOrDefault();
+
+                // Check if the monitor string from our ini matches any current displayIDs
+                foreach (var d in Displays)
+                {
+                    string displayID = new string(d.szDevice).Trim('\0');
+                    if (displayID == monitor)
+                    {
+                        // Found a match, use this display
+                        display = d;
+                        break;
+                    }
+                }
 
                 RECT rect = windowMode > 0 ? display.rcMonitor : display.rcWork;
 

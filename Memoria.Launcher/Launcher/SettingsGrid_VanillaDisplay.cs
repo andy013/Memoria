@@ -110,7 +110,11 @@ namespace Memoria.Launcher
                         iniFile.SetSetting("Settings", propertyName, _resolution?.Split('|')[0].Trim(' ') ?? "0x0");
                         break;
                     case nameof(ActiveMonitor):
-                        iniFile.SetSetting("Settings", propertyName, ActiveMonitor ?? String.Empty);
+                        Int32.TryParse(ActiveMonitor.Substring(0, 1), out int index);
+                        if (index < Screen.AllScreens.Length) 
+                            iniFile.SetSetting("Settings", propertyName, Screen.AllScreens[index].DeviceName);
+                        else
+                            iniFile.SetSetting("Settings", propertyName, String.Empty);
                         break;
                     case nameof(WindowMode):
                         iniFile.SetSetting("Settings", propertyName, WindowMode.ToString());
@@ -148,8 +152,10 @@ namespace Memoria.Launcher
                 value = iniFile.GetSetting("Settings", nameof(ActiveMonitor));
                 if (!String.IsNullOrEmpty(value))
                 {
-                    var i = value.IndexOf("[");
-                    _activeMonitor = i < 0 ? value : value.Substring(0, i) + (String)Lang.Res["Settings.PrimaryMonitor"];
+                    var index = Array.FindIndex(Screen.AllScreens, s => s.DeviceName == value);
+                    var name = BuildMonitorString(index);
+
+                    _activeMonitor = name;
                 }
 
                 value = iniFile.GetSetting("Settings", nameof(WindowMode));
@@ -236,30 +242,46 @@ namespace Memoria.Launcher
         public String[] GetAvailableMonitors()
         {
             Screen[] allScreens = Screen.AllScreens;
-            Dictionary<Int32, String> friendlyNames = ScreenInterrogatory.GetAllMonitorFriendlyNamesSafe();
             String[] result = new String[allScreens.Length];
             for (Int32 index = 0; index < allScreens.Length; index++)
             {
+                result[index] = BuildMonitorString(index);
+
+                if (allScreens[index].Primary)
+                    _activeMonitor = result[index];
+            }
+            return result;
+        }
+
+        public String BuildMonitorString(Int32 index)
+        {
+            Screen[] allScreens = Screen.AllScreens;
+            Dictionary<Int32, String> friendlyNames = ScreenInterrogatory.GetAllMonitorFriendlyNamesSafe();
+
+            StringBuilder sb = new StringBuilder();
+
+            sb.Append(index);
+            sb.Append(" - ");
+
+            if (index < allScreens.Length && index >= 0)
+            {
                 Screen screen = allScreens[index];
-                StringBuilder sb = new StringBuilder();
-                sb.Append(index);
-                sb.Append(" - ");
 
                 String name;
                 if (!friendlyNames.TryGetValue(index, out name))
                     name = screen.DeviceName;
                 sb.Append(name);
 
+
                 if (screen.Primary)
                     sb.Append((String)Lang.Res["Settings.PrimaryMonitor"]);
-
-                result[index] = sb.ToString();
-
-                if (screen.Primary)
-                    _activeMonitor = result[index];
+            } else
+            {
+                sb.Append("Unknown Monitor");
             }
-            return result;
-        }
+
+            return(sb.ToString());
+        } 
 
         private struct DevMode
         {
